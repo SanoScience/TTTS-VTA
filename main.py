@@ -2,12 +2,14 @@ import cv2 as cv
 import numpy as np
 import os
 
+
+
 def BGR2G(img):
     green_channel = img[:, :, 1]
     return  green_channel
 
 def medianBlur(img):
-    kernel_size = 5
+    kernel_size = 11 #5, 7
     median_blur = cv.medianBlur(img, kernel_size)
     return median_blur
 
@@ -16,7 +18,7 @@ def CLAHE(img):
     clache_img = clahe.apply(img)
     return clache_img
 
-def adaptiveThreashold(img, isGauss):
+def adaptiveThreashold(img, isGauss: bool):
     method = cv.ADAPTIVE_THRESH_MEAN_C
     if isGauss:
         method = cv.ADAPTIVE_THRESH_GAUSSIAN_C
@@ -33,44 +35,38 @@ def morphologicClosing(img):
     closed_img = cv.morphologyEx(img, cv.MORPH_CLOSE, kernel)
     return closed_img
 
-def removeBorder(img):
-    mask = cv.imread('data/mask/mask.png')
-    mask = cv.cvtColor(mask, cv.COLOR_BGR2GRAY)
-
+def removeBorder(img, mask):
     masked_img = cv.bitwise_and(img, img, mask=mask)
     extracted_img = cv.bitwise_not(masked_img, masked_img, mask=mask)
     inverted_img = cv.bitwise_not(extracted_img)
     return inverted_img
 
-def processImg(img):
+def processImg(img, img_name, mask, imShow: bool):
+
     green_channel_img = BGR2G(img)
-    cv.imshow('Green channel', green_channel_img)
-
     median_blur_img = medianBlur(green_channel_img)
-    cv.imshow('Median blur', median_blur_img)
-
     clahe_img = CLAHE(median_blur_img)
-    cv.imshow('CLAHE', clahe_img)
-
     threashold_img = adaptiveThreashold(clahe_img, isGauss = False)
-    cv.imshow('Adaptive threashold', threashold_img)
-
     speckless_img = speckleFilter(threashold_img)
-    cv.imshow('Speckless Mean', speckless_img)
-
     closed_img = morphologicClosing(speckless_img)
-    cv.imshow('Morphologic closing', closed_img)
+    borderless_img = removeBorder(closed_img, mask)
 
-    borderless_img = removeBorder(closed_img)
-    cv.imshow('Borderless', borderless_img)
+    if imShow:
+        cv.imshow('Green channel', green_channel_img)
+        cv.imshow('Median blur', median_blur_img)
+        cv.imshow('CLAHE', clahe_img)
+        cv.imshow('Adaptive threashold', threashold_img)
+        cv.imshow('Speckless Mean', speckless_img)
+        cv.imshow('Morphologic closing', closed_img)
+        cv.imshow('Borderless', borderless_img)
 
-    # cv.imwrite('data/processed/2.png', borderless_img)
+        cv.waitKey(0)
+        cv.destroyAllWindows()
 
-
-def cropImg(img):
-    # img = cv.imread(img_path)
-    mask = cv.imread('data/mask/mask.png')
-    mask = cv.cvtColor(mask, cv.COLOR_BGR2GRAY)
+    cv.imwrite('data/processed/P_' + img_name, borderless_img)
+    return borderless_img
+    
+def cropImg(img, img_name, mask):
     masked_img = cv.bitwise_and(img, img, mask=mask)
 
     gray_img = cv.cvtColor(masked_img, cv.COLOR_BGR2GRAY)
@@ -78,37 +74,30 @@ def cropImg(img):
 
     masked_img = cv.cvtColor(masked_img, cv.COLOR_BGR2BGRA)
     masked_img[:, :, 3] = alpha
-    cv.imwrite('data/cropped/1.png', masked_img)
 
+    cv.imwrite('data/cropped/C_'+ img_name, masked_img)
+    return masked_img
 
 def loadImgs(dir_path):
-    image_paths =  [ dir_path + '/' + f  for f  in sorted(os.listdir(dir_path))]
-    return image_paths
+    image_names =  [f  for f  in sorted(os.listdir(dir_path))]
+    return image_names
 
+def loadMask(mask_path):
+    mask = cv.imread(mask_path)
+    mask = cv.cvtColor(mask, cv.COLOR_BGR2GRAY)
+    return mask
 
-def mosaicingImg():
-    # Load the images
-    cimage1 = cv.imread('data/cropped/cropped.png')
-    cimage2 = cv.imread('data/cropped/cropped2.png')
-
-
-    image1 = cv.imread('data/processed/1.png')
-    image2 = cv.imread('data/processed/2.png')
-
+def mosaicingImgs(img1, img2, crop1, crop2):
 
     # Initialize the SIFT feature detector and extractor
     sift = cv.SIFT_create()
 
     # Detect keypoints and compute descriptors for both images
-    keypoints1, descriptors1 = sift.detectAndCompute(image1, None)
-    keypoints2, descriptors2 = sift.detectAndCompute(image2, None)
-
-    # Draw keypoints on the images
-    image1_keypoints = cv.drawKeypoints(image1, keypoints1, None)
-    image2_keypoints = cv.drawKeypoints(image2, keypoints2, None)
+    keypoints1, descriptors1 = sift.detectAndCompute(img1, None)
+    keypoints2, descriptors2 = sift.detectAndCompute(img2, None)
 
     # Initialize the feature matcher using FLANN matching
-    num_matches = 50
+    num_matches = 100
 
     index_params = dict(algorithm=0, trees=5)
     search_params = dict(checks=50)
@@ -121,8 +110,7 @@ def mosaicingImg():
     matches_flann = sorted(matches_flann, key=lambda x: x.distance)
 
     # Draw the top N matches
-    image_matches_flann = cv.drawMatches(image1, keypoints1, image2, keypoints2, matches_flann[:num_matches], None)
-
+    image_matches_flann = cv.drawMatches(img1, keypoints1, img2, keypoints2, matches_flann[:num_matches], None)
 
     # Extract the matched keypoints
     src_points = np.float32([keypoints1[m.queryIdx].pt for m in matches_flann]).reshape(-1, 1, 2)
@@ -131,29 +119,73 @@ def mosaicingImg():
     # Estimate the homography matrix using RANSAC
     homography, mask = cv.findHomography(src_points, dst_points, cv.RANSAC, 5.0)
 
-    # Print the estimated homography matrix
-    print("Estimated Homography Matrix:")
-    print(homography)
+    # # Print the estimated homography matrix
+    # print("Estimated Homography Matrix:")
+    # print(homography)
 
     # Display the images with matches
     cv.imshow('FLANN Matching', image_matches_flann)
 
     # Warp the first image using the homography
-    # result = cv.warpPerspective(image1, homography, (image2.shape[1], image2.shape[0]))
-    result = cv.warpPerspective(cimage1, homography, (cimage2.shape[1], cimage2.shape[0]))
+    # result = cv.warpPerspective(img1, homography, (img2.shape[1], img2.shape[0]))
+    result = cv.warpPerspective(crop1, homography, (crop2.shape[1], crop2.shape[0]))
 
 
     # Blending the warped image with the second image using alpha blending
     alpha = 0.5  # blending factor
-    # blended_image = cv.addWeighted(result, alpha, image2, 1 - alpha, 0)
-    blended_image = cv.addWeighted(result, alpha, cimage2, 1 - alpha, 0)
+    # blended_image = cv.addWeighted(result, alpha, img2, 1 - alpha, 0)
+    blended_image = cv.addWeighted(result, alpha, crop2, 1 - alpha, 0)
 
     # Display the blended image
     cv.imshow('Blended Image', blended_image)
     cv.waitKey(0)
     cv.destroyAllWindows()
 
+    cv.imwrite('data/mosaic.png', blended_image)
+
+
+
+def VTA():
+
+    mask = loadMask('data/mask/mask.png')
+    img_names = loadImgs('data/processed')
+
+    for img_name in img_names:
+
+        img = cv.imread('data/sample/' + img_name)
+
+        cropped_img = cropImg(img, img_name, mask)
+        processed_img = processImg(img, img_name, mask, False)
+
+        mosaicingImgs(img, img_name)
+
+
 
 def main():
-    img = cv.imread('data/sample/test2.png')
-    processImg(img)
+    mask = loadMask('data/mask/mask.png')
+    img_names = loadImgs('data/sample')
+
+    # for img_name in img_names:
+
+    #     img = cv.imread('data/sample/' + img_name)
+
+    #     cropped_img = cropImg(img, img_name, mask)
+    #     processed_img = processImg(img, img_name, mask, False)
+
+
+
+    simg = cv.imread('data/processed/P_anon001_00942.png')
+    scrop = cv.imread('data/cropped/C_anon001_00942.png')
+
+    for img_name in img_names:
+        img1 = cv.imread('data/processed/P_'+ img_name)
+        crop1 = cv.imread('data/cropped/C_'+ img_name)
+        
+        mosaicingImgs(simg,img1,scrop,crop1)
+        simg = img1
+        scrop = crop1
+
+
+
+if __name__ == "__main__":
+    main()
