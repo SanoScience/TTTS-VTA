@@ -90,17 +90,28 @@ def loadMask(mask_path):
 def mosaicingImgs(img1, img2, crop1, crop2):
 
     # Initialize the SIFT feature detector and extractor
-    sift = cv.SIFT_create()
+    # sift = cv.SIFT_create()
+    sift = cv.ORB_create()
+
 
     # Detect keypoints and compute descriptors for both images
     keypoints1, descriptors1 = sift.detectAndCompute(img1, None)
     keypoints2, descriptors2 = sift.detectAndCompute(img2, None)
 
     # Initialize the feature matcher using FLANN matching
-    num_matches = 100
+    num_matches = 20
 
+    #SIFT
     index_params = dict(algorithm=0, trees=5)
     search_params = dict(checks=50)
+
+    #ORB
+    FLANN_INDEX_LSH = 6
+    index_params= dict(algorithm = FLANN_INDEX_LSH,
+                   table_number = 6, # 12
+                   key_size = 12,     # 20
+                   multi_probe_level = 1) #2
+
     flann = cv.FlannBasedMatcher(index_params, search_params)
 
     # Match the descriptors using FLANN matching
@@ -146,9 +157,12 @@ def mosaicingImgs(img1, img2, crop1, crop2):
 
 
 def VTA():
-
     mask = loadMask('data/mask/mask.png')
-    img_names = loadImgs('data/processed')
+    img_names = loadImgs('data/sample')
+
+    prev_img = cv.imread('data/sample/'+img_names[0])
+    prev_cropped_img = cropImg(prev_img, img_names[0], mask)
+    prev_proc_img = processImg(prev_img, img_names[0], mask, False)
 
     for img_name in img_names:
 
@@ -157,33 +171,14 @@ def VTA():
         cropped_img = cropImg(img, img_name, mask)
         processed_img = processImg(img, img_name, mask, False)
 
-        mosaicingImgs(img, img_name)
+        mosaicingImgs(prev_proc_img, processed_img, prev_cropped_img, cropped_img)
 
+        prev_cropped_img = cropped_img
+        prev_proc_img = processed_img
 
 
 def main():
-    mask = loadMask('data/mask/mask.png')
-    img_names = loadImgs('data/sample')
-
-    # for img_name in img_names:
-
-    #     img = cv.imread('data/sample/' + img_name)
-
-    #     cropped_img = cropImg(img, img_name, mask)
-    #     processed_img = processImg(img, img_name, mask, False)
-
-
-
-    simg = cv.imread('data/processed/P_anon001_00942.png')
-    scrop = cv.imread('data/cropped/C_anon001_00942.png')
-
-    for img_name in img_names:
-        img1 = cv.imread('data/processed/P_'+ img_name)
-        crop1 = cv.imread('data/cropped/C_'+ img_name)
-        
-        mosaicingImgs(simg,img1,scrop,crop1)
-        simg = img1
-        scrop = crop1
+    VTA()
 
 
 
