@@ -3,7 +3,6 @@ import numpy as np
 import os
 
 
-
 def BGR2G(img):
     green_channel = img[:, :, 1]
     return  green_channel
@@ -175,6 +174,7 @@ def VTA():
 
         prev_cropped_img = cropped_img
         prev_proc_img = processed_img
+
 
 
 def main():
