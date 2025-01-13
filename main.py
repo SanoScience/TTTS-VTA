@@ -35,7 +35,7 @@ def speckleFilter(img):
 
 
 def morphologicClosing(img):
-    kernel = np.ones((5, 5), np.uint8)
+    kernel = np.ones((4, 4), np.uint8)
     closed_img = cv.morphologyEx(img, cv.MORPH_CLOSE, kernel)
     return closed_img
 
@@ -59,11 +59,11 @@ def processImg(img, img_name, mask, imShow: bool):
 
     if imShow:
         cv.imshow("Green channel", green_channel_img)
-        cv.imshow("Median blur", median_blur_img)
-        cv.imshow("CLAHE", clahe_img)
-        cv.imshow("Adaptive threashold", threashold_img)
-        cv.imshow("Speckless Mean", speckless_img)
-        cv.imshow("Morphologic closing", closed_img)
+        # cv.imshow("Median blur", median_blur_img)
+        # cv.imshow("CLAHE", clahe_img)
+        # cv.imshow("Adaptive threashold", threashold_img)
+        # cv.imshow("Speckless Mean", speckless_img)
+        # cv.imshow("Morphologic closing", closed_img)
         cv.imshow("Borderless", borderless_img)
 
         cv.waitKey(0)

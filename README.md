@@ -21,9 +21,3 @@ Algorithm can be divided into 5 steps. By following them we should get expected 
 
 ## Requirements
 - OpenCV
-
-## Todo
-- create loop of mosaics
-- refactor code
-- test 
-- finish readme
